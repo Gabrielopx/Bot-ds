@@ -1,27 +1,104 @@
-const { Client, Collection } = require('discord.js')
-const SimplDB = require('simpl.db')
+const Discord = require("discord.js");
 
-const fs = require('fs')
+const client = new Discord.Client({ intents: [1, 512, 32768, 2, 128] });
 
-require('dotenv').config()
-const client = new Client({intents: 3276799})
+const config = require("./config.json");
 
-client.commands = new Collection()
-client.database = new SimplDB()
+const fs = require("fs");
 
-client.login(process.env.TOKEN)
 
-module.exports = client
 
-fs.readdirSync('commands').forEach(subFolder => {
-    fs.readdirSync(`commands/${subFolder}`).forEach(cmd => {
-        const cmds = require(`./commands/${subFolder}/${cmd}`)
-        client.commands.set(cmds.name, cmds)
-        console.log(`${cmds.name} Carregado!`)
-    })
+client.login(config.token)
+
+
+
+client.commands = new Discord.Collection();
+
+client.aliases = new Discord.Collection();
+
+client.categories = fs.readdirSync(`./commands/`);
+
+
+
+fs.readdirSync('./commands/').forEach(local => {
+
+    const comandos = fs.readdirSync(`./commands/${local}`).filter(arquivo => arquivo.endsWith('.js'))
+
+
+
+    for(let file of comandos) {
+
+        let puxar= require(`./commands/${local}/${file}`)
+
+
+
+        if(puxar.name) {
+
+            client.commands.set(puxar.name, puxar)
+
+        } 
+
+        if(puxar.aliases && Array.isArray(puxar.aliases))
+
+        puxar.aliases.forEach(x => client.aliases.set(x, puxar.name))
+
+    } 
+
+});
+
+
+
+client.on("messageCreate", async (message) => {
+
+
+
+    let prefix = config.prefix;
+
+  
+
+    if (message.author.bot) return;
+
+    if (message.channel.type === Discord.ChannelType.DM) return;     
+
+  
+
+    if (!message.content.toLowerCase().startsWith(prefix.toLowerCase())) return;
+
+  
+
+    if(!message.content.startsWith(prefix)) return;
+
+    const args = message.content.slice(prefix.length).trim().split(/ +/g);
+
+  
+
+    let cmd = args.shift().toLowerCase()
+
+    if(cmd.length === 0) return;
+
+    let command = client.commands.get(cmd)
+
+    if(!command) command = client.commands.get(client.aliases.get(cmd)) 
+
+    
+
+  try {
+
+      command.run(client, message, args)
+
+  } catch (err) { 
+
+     console.error('Erro:' + err); 
+
+  }
+
+});
+
+
+
+client.on("ready", () => {
+
+    console.log(`🔥 Estou online em ${client.user.username}!`)
+
 })
 
-fs.readdirSync('events').forEach(event => {
-    const eventData = require(`./events/${event}`)
-    client.on(eventData.name, eventData.run)
-})
